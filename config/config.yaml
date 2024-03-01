@@ -1,0 +1,7 @@
+secret_key: "artemlizaarinakatyazhenya"
+storage_path: "./storage.db"
+db_host: "mongodb://localhost:27017"
+http_server:
+  address: "0.0.0.0:8080"
+  timeout: 5s
+  idle_timeout: 30s
