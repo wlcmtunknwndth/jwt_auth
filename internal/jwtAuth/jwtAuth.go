@@ -22,8 +22,17 @@ type Info struct {
 	jwt.RegisteredClaims
 }
 
-func checkRequest(w http.ResponseWriter, r *http.Request) (*Info, error) {
-	cookie, err := r.Cookie("token")
+// TimeToLive == Ttl
+const (
+	AccessToken  = "access"
+	RefreshToken = "refresh"
+
+	TtlAccess  = 2
+	TtlRefresh = 5
+)
+
+func checkRequest(w http.ResponseWriter, r *http.Request, cookieName string) (*Info, error) {
+	cookie, err := r.Cookie(cookieName)
 	if err != nil {
 		slog.Error("error looking for cookies: ", err)
 		if errors.Is(err, http.ErrNoCookie) {
@@ -43,6 +52,7 @@ func checkRequest(w http.ResponseWriter, r *http.Request) (*Info, error) {
 	})
 
 	if err != nil {
+		slog.Error("couldn't parse jwt: ", err)
 		if errors.Is(err, jwt.ErrSignatureInvalid) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return nil, err
@@ -59,7 +69,7 @@ func checkRequest(w http.ResponseWriter, r *http.Request) (*Info, error) {
 }
 
 func Access(w http.ResponseWriter, r *http.Request) bool {
-	info, err := checkRequest(w, r)
+	info, err := checkRequest(w, r, AccessToken)
 	if err != nil {
 		slog.Error("wasn't able to find token: ", err)
 		return false
@@ -72,17 +82,19 @@ func Access(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func Refresh(w http.ResponseWriter, r *http.Request) {
-	info, err := checkRequest(w, r)
+	info, err := checkRequest(w, r, RefreshToken)
 	if err != nil {
 		return
 	}
 
-	if time.Until(info.ExpiresAt.Time) > 30*time.Second {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	// gives a new access token only if previous is about to die in 30 secs
+	//if time.Until(info.ExpiresAt.Time) > 30*time.Second {
+	//	slog.Error("token ", RefreshToken, " is about to out of clock")
+	//	w.WriteHeader(http.StatusBadRequest)
+	//	return
+	//}
 
-	expiresAt := time.Now().Add(5 * time.Minute)
+	expiresAt := time.Now().Add(TtlAccess * time.Minute)
 
 	info.ExpiresAt = jwt.NewNumericDate(expiresAt)
 
@@ -95,37 +107,46 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
+		Name:    AccessToken,
 		Value:   tokenStr,
 		Expires: expiresAt,
 	})
+
+	if _, err = w.Write([]byte(fmt.Sprintf("User %s has got a new access token", info.Username))); err != nil {
+		slog.Error(`couldn't write a message to {info.Username}`)
+	}
 }
 
-//func WriteNewToken(w http.ResponseWriter, usr User, tokenName string){
-//	expireAt := time.Now().Add(1 * time.Minute)
-//
-//	inf := &Info{
-//		Username: usr.Username,
-//		RegisteredClaims: jwt.RegisteredClaims{
-//			ExpiresAt: jwt.NewNumericDate(expireAt),
-//		},
-//	}
-//
-//	token := jwt.NewWithClaims(jwt.SigningMethodHS512, inf)
-//
-//	//key, ok := os.LookupEnv("secret_key")
-//	//if !ok {
-//	//	slog.Error("missing secret key")
-//	//	return
-//	//}
-//	tokenStr, err := token.SignedString([]byte(Key))
-//	if err != nil {
-//		w.WriteHeader(http.StatusInternalServerError)
-//		return
-//	}
-//
-//	http.SetCookie(w, &http.Cookie{
-//		Name:    tokenName,
-//		Value:   tokenStr,
-//		Expires: expireAt,
-//}
+func WriteNewToken(w http.ResponseWriter, usr User, tokenName string) {
+	var expireAt time.Time
+	switch tokenName {
+	case RefreshToken:
+		expireAt = time.Now().Add(TtlRefresh * time.Minute)
+	case AccessToken:
+		expireAt = time.Now().Add(TtlAccess * time.Minute)
+	default:
+		return
+	}
+
+	inf := &Info{
+		Username: usr.Username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expireAt),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, inf)
+
+	tokenStr, err := token.SignedString([]byte(Key))
+	if err != nil {
+		slog.Error("error generating ", tokenName, "token: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:    tokenName,
+		Value:   tokenStr,
+		Expires: expireAt,
+	})
+}

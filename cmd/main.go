@@ -41,11 +41,13 @@ func main() {
 		jwtAuth.Access(w, r)
 	})
 
-	router.Route("/login", func(router chi.Router) {
-		router.Post("/", func(w http.ResponseWriter, r *http.Request) {
-			auth.LogIn(w, r, context.TODO(), db)
-		})
+	router.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		jwtAuth.Refresh(w, r)
 	})
+	router.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+		auth.LogIn(w, r, context.TODO(), db)
+	})
+
 	router.Post("/register", func(w http.ResponseWriter, r *http.Request) {
 		auth.Register(w, r, context.TODO(), db)
 	})
