@@ -4,31 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/wlcmtunknwndth/jwt_auth/internal/jwtAuth"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
 
-var Key, _ = os.LookupEnv("secret_key")
-
-type User struct {
-	Username string `bson:"username" json:"username"`
-	Password string `bson:"password" json:"password"`
-}
-
-type Info struct {
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
-
 type Storage interface {
 	GetPass(ctx context.Context, username string) (string, error)
-	RegisterUser(ctx context.Context, user User) error
+	RegisterUser(ctx context.Context, user jwtAuth.User) error
 }
 
 func Register(w http.ResponseWriter, r *http.Request, ctx context.Context, db Storage) {
-	var usr User
+	var usr jwtAuth.User
 	err := json.NewDecoder(r.Body).Decode(&usr)
 	if err != nil {
 		slog.Info("couldn't process request: ", err)
@@ -64,7 +52,12 @@ func Register(w http.ResponseWriter, r *http.Request, ctx context.Context, db St
 }
 
 func LogIn(w http.ResponseWriter, r *http.Request, ctx context.Context, db Storage) {
-	var usr User
+	var usr jwtAuth.User
+	//ok := jwtAuth.Access(w, r)
+	//if ok == true {
+	//	slog.Info("user is already authorized")
+	//	return
+	//}
 	err := json.NewDecoder(r.Body).Decode(&usr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -78,9 +71,9 @@ func LogIn(w http.ResponseWriter, r *http.Request, ctx context.Context, db Stora
 		return
 	}
 
-	expireAt := time.Now().Add(10 * time.Minute)
+	expireAt := time.Now().Add(1 * time.Minute)
 
-	inf := &Info{
+	inf := &jwtAuth.Info{
 		Username: usr.Username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expireAt),
@@ -94,7 +87,7 @@ func LogIn(w http.ResponseWriter, r *http.Request, ctx context.Context, db Stora
 	//	slog.Error("missing secret key")
 	//	return
 	//}
-	tokenStr, err := token.SignedString([]byte(Key))
+	tokenStr, err := token.SignedString([]byte(jwtAuth.Key))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

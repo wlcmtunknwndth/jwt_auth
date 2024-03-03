@@ -2,7 +2,7 @@ package mongodb
 
 import (
 	"context"
-	"github.com/wlcmtunknwndth/jwt_auth/internal/auth"
+	"github.com/wlcmtunknwndth/jwt_auth/internal/jwtAuth"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -15,6 +15,7 @@ import (
 const (
 	DbName          = "db"
 	UsersCollection = "users"
+	PagesCollection = "pages"
 )
 
 type Mongodb struct {
@@ -61,7 +62,7 @@ func (db *Mongodb) Close(ctx context.Context, cancelFunc context.CancelFunc) {
 	}()
 }
 
-func (db *Mongodb) RegisterUser(ctx context.Context, user auth.User) error {
+func (db *Mongodb) RegisterUser(ctx context.Context, user jwtAuth.User) error {
 	collection := db.client.Database(DbName).Collection(UsersCollection)
 	_, err := collection.InsertOne(ctx, user)
 	return err
@@ -72,7 +73,7 @@ func (db *Mongodb) GetPass(ctx context.Context, username string) (string, error)
 
 	filter := bson.D{{"username", username}}
 	res := collection.FindOne(ctx, filter /*options.FindOne().SetProjection("password")*/)
-	//if err != nil {
+	//if err != nil
 	//	if errors.Is(err, mongo.ErrNilDocument) {
 	//		slog.Error("the password is missing")
 	//		//os.Exit(1)
@@ -80,7 +81,7 @@ func (db *Mongodb) GetPass(ctx context.Context, username string) (string, error)
 	//	slog.Error("couldn't get a password: ", err)
 	//	return
 	//}
-	var user auth.User
+	var user jwtAuth.User
 	if err := res.Decode(&user); err != nil {
 		slog.Error("couldn't decode data: ", err)
 		return "", err

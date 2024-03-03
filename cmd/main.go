@@ -5,6 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/wlcmtunknwndth/jwt_auth/internal/auth"
+	"github.com/wlcmtunknwndth/jwt_auth/internal/jwtAuth"
 	"github.com/wlcmtunknwndth/jwt_auth/internal/secrets"
 	"github.com/wlcmtunknwndth/jwt_auth/storage/mongodb"
 	"log/slog"
@@ -32,6 +33,14 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Logger)
 	router.Use(middleware.URLFormat)
+
+	router.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
+		auth.LogOut(w, r)
+	})
+	router.Post("/access", func(w http.ResponseWriter, r *http.Request) {
+		jwtAuth.Access(w, r)
+	})
+
 	router.Route("/login", func(router chi.Router) {
 		router.Post("/", func(w http.ResponseWriter, r *http.Request) {
 			auth.LogIn(w, r, context.TODO(), db)
